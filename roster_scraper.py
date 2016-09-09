@@ -10,7 +10,6 @@ import arrow
 import argparse
 
 URL = "http://www.dota2.com/majorsregistration/list"
-MY_TOKEN = os.getenv("SLACK_BOT_TOKEN") # get ur own xd
 TABLE = "roster_status"
 
 def log_print(message):
