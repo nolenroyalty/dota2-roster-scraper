@@ -74,7 +74,7 @@ def parse_args():
     parser.add_argument("--database", help="Override database", default="teamliquid.db")
     parser.add_argument("--api-key", help="Override SLACK_BOT_TOKEN env variable")
     parser.add_argument("--no-slack", help="Don't post to slack", action="store_true")
-    parser.add_argument("--sleep-time", type=int, help="Time to sleep between runs")
+    parser.add_argument("--sleep-time", type=int, help="Time to sleep between runs", default=15)
     args = parser.parse_args()
     return args
 
@@ -94,4 +94,4 @@ if __name__ == "__main__":
         log_print("scanning for new players...")
         do_loop(args.database, slack_token, args.chatroom, args.no_slack)
         log_print("done scanning...")
-        time.sleep(15)
+        time.sleep(args.sleep_time)
