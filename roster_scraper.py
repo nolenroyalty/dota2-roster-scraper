@@ -28,8 +28,8 @@ def parse_row(row):
     row = [d.text.strip() for d in divs]
     row = [r.encode("ascii", "ignore") for r in row]
     date, time, _, player, team, action = row
-    player = re.sub(" \([^)]*\)$", "", player)
-    team = re.sub("\(ID: \d+\)", "", team)
+    player = re.sub(r" \([^)]*\)$", "", player)
+    team = re.sub(r"\(ID: \d+\)", "", team)
     return (date, time, player, team, action)
 
 def post_to_slack(bot, chatroom, message, no_slack):
