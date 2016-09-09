@@ -13,6 +13,7 @@ URL = "http://www.dota2.com/majorsregistration/list"
 TABLE = "roster_status"
 
 def log_print(message):
+    # yeah yeah I'm sure there's a library that does this asciishrug
     now = arrow.now()
     now = now.strftime("%Y-%m-%d %H:%M:%S")
     print "[{}] {}".format(now, message)
@@ -27,8 +28,13 @@ def parse_row(row):
     divs = row.find_all("div")
     row = [d.text.strip() for d in divs]
     row = [r.encode("ascii", "ignore") for r in row]
+    # third value here is unix timestamp
     date, time, _, player, team, action = row
+    # Player field sometimes includes their real name and sometimes doesn't.
+    # Valve likes to come back and add this later, meaning we repost the same news
+    # multiple times if we include it.  So regex it out
     player = re.sub(r" \([^)]*\)$", "", player)
+    # Valve inconsistently includes team IDs in the data as well: remove that too
     team = re.sub(r"\(ID: \d+\)", "", team)
     return (date, time, player, team, action)
 
@@ -39,6 +45,7 @@ def post_to_slack(bot, chatroom, message, no_slack):
 def get_existing_rows(conn):
     cursor = conn.cursor()
     rows = cursor.execute("SELECT * FROM {}".format(TABLE))
+    # Don't add "action" to the set here because we don't dedupe on it (see below)
     rows = set([(date, time, player, team) for date, time, player, team, action in rows])
     return rows
 
@@ -52,7 +59,10 @@ def do_loop(database, slack_token, chatroom, no_slack):
     existing_rows = get_existing_rows(conn)
     rows = get_rows()
     rows = map(parse_row, rows)
-    rows = {(date, time, player, team): (date, time, player, team, action) for (date, time, player, team, action) in rows}
+    # Valve regularly changes the text in "action", so to prevent reposting
+    # the same roster news multiple times, don't dedupe on action
+    rows = {(date, time, player, team): (date, time, player, team, action)
+            for (date, time, player, team, action) in rows}
     all_row_keys = set(rows.keys())
     new_row_keys = all_row_keys - existing_rows
     new_row_keys = sorted(new_row_keys)
