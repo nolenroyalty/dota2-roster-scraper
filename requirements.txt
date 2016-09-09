@@ -1,0 +1,4 @@
+slacker
+bs4
+requests
+arrow
