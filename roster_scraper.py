@@ -52,7 +52,7 @@ def add_row(conn, row):
     cursor = conn.cursor()
     cursor.execute("INSERT INTO {} VALUES (?, ?, ?, ?, ?)".format(TABLE), row)
 
-def do_loop(database, slack_token, chatroom, no_slack):
+def do_loop(database, slack_token, chatroom, should_post):
     bot = Slacker(slack_token)
     conn = sqlite3.connect(database)
     existing_rows = get_existing_rows(conn)
@@ -71,7 +71,7 @@ def do_loop(database, slack_token, chatroom, no_slack):
         date, time, player, team, action = row
         message = "{} {} {} at {} {}".format(player, action, team, date, time)
         log_print(message)
-        if not no_slack:
+        if should_post:
             post_to_slack(bot, chatroom, message)
         add_row(conn, row)
     conn.commit()
@@ -96,11 +96,12 @@ def get_token(args):
 if __name__ == "__main__":
     args = parse_args()
     slack_token = get_token(args)
+    should_post = not args.no_slack
     
     conn = sqlite3.connect(args.database)
     conn.execute("CREATE TABLE IF NOT EXISTS roster_status (date text, time text, player_name text, team text, action text)")
     while True:
         log_print("scanning for new players...")
-        do_loop(args.database, slack_token, args.chatroom, args.no_slack)
+        do_loop(args.database, slack_token, args.chatroom, should_post)
         log_print("done scanning...")
         time.sleep(args.sleep_time)
