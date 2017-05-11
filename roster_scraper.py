@@ -50,28 +50,26 @@ def add_row(conn, row):
 
 def do_loop(database, slack_token, chatroom, should_post):
     bot = Slacker(slack_token)
-    conn = sqlite3.connect(database)
-    existing_rows = get_existing_rows(conn)
-    rows = get_rows()
-    rows = map(parse_row, rows)
-    # Valve regularly changes the text in "action", so to prevent reposting
-    # the same roster news multiple times, don't dedupe on action
-    rows = {(date, time, player, team): (date, time, player, team, action)
-            for (date, time, player, team, action) in rows}
-    all_row_keys = set(rows.keys())
-    new_row_keys = all_row_keys - existing_rows
-    new_row_keys = sorted(new_row_keys)
+    with sqlite3.connect(database) as conn:
+        existing_rows = get_existing_rows(conn)
+        rows = get_rows()
+        rows = map(parse_row, rows)
+        # Valve regularly changes the text in "action", so to prevent reposting
+        # the same roster news multiple times, don't dedupe on action
+        rows = {(date, time, player, team): (date, time, player, team, action)
+                for (date, time, player, team, action) in rows}
+        all_row_keys = set(rows.keys())
+        new_row_keys = all_row_keys - existing_rows
+        new_row_keys = sorted(new_row_keys)
 
-    for row in new_row_keys:
-        row = rows[row]
-        date, time, player, team, action = row
-        message = u"{} {} {} at {} {}".format(player, action, team, date, time)
-        log_print(message)
-        if should_post:
-            bot.chat.post_message(chatroom, message)
-        add_row(conn, row)
-    conn.commit()
-    conn.close()
+        for row in new_row_keys:
+            row = rows[row]
+            date, time, player, team, action = row
+            message = u"{} {} {} at {} {}".format(player, action, team, date, time)
+            log_print(message)
+            if should_post:
+                bot.chat.post_message(chatroom, message)
+            add_row(conn, row)
 
 def parse_args():
     parser = argparse.ArgumentParser()
