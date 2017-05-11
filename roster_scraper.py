@@ -37,9 +37,6 @@ def parse_row(row):
     team = re.sub(r"\(ID: \d+\)", "", team)
     return (date, time, player, team, action)
 
-def post_to_slack(bot, chatroom, message):
-    bot.chat.post_message(chatroom, message)
-
 def get_existing_rows(conn):
     cursor = conn.cursor()
     rows = cursor.execute("SELECT * FROM {}".format(TABLE))
@@ -71,7 +68,7 @@ def do_loop(database, slack_token, chatroom, should_post):
         message = u"{} {} {} at {} {}".format(player, action, team, date, time)
         log_print(message)
         if should_post:
-            post_to_slack(bot, chatroom, message)
+            bot.chat.post_message(chatroom, message)
         add_row(conn, row)
     conn.commit()
     conn.close()
