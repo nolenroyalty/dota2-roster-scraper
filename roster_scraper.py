@@ -16,7 +16,7 @@ def log_print(message):
     # yeah yeah I'm sure there's a library that does this asciishrug
     now = arrow.now()
     now = now.strftime("%Y-%m-%d %H:%M:%S")
-    print "[{}] {}".format(now, message)
+    print u"[{}] {}".format(now, message)
 
 def get_rows():
     response = requests.get(URL)
@@ -27,7 +27,6 @@ def get_rows():
 def parse_row(row):
     divs = row.find_all("div")
     row = [d.text.strip() for d in divs]
-    row = [r.encode("ascii", "ignore") for r in row]
     # third value here is unix timestamp
     date, time, _, player, team, action = row
     # Player field sometimes includes their real name and sometimes doesn't.
@@ -69,7 +68,7 @@ def do_loop(database, slack_token, chatroom, should_post):
     for row in new_row_keys:
         row = rows[row]
         date, time, player, team, action = row
-        message = "{} {} {} at {} {}".format(player, action, team, date, time)
+        message = u"{} {} {} at {} {}".format(player, action, team, date, time)
         log_print(message)
         if should_post:
             post_to_slack(bot, chatroom, message)
