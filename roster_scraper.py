@@ -9,7 +9,7 @@ from slacker import Slacker
 import arrow
 import argparse
 
-URL = "http://www.dota2.com/majorsregistration/list"
+URL = "http://www.dota2.com/majorsregistration/rosters"
 TABLE = "roster_status"
 
 def log_print(message):
@@ -18,31 +18,34 @@ def log_print(message):
     now = now.strftime("%Y-%m-%d %H:%M:%S")
     print u"[{}] {}".format(now, message)
 
-def get_rows():
+def get_divs():
     response = requests.get(URL)
     soup = bs4.BeautifulSoup(response.text)
-    rows = soup.find_all("div", **{"class": "ConfirmationRow"})
+    rows = soup.find_all("div", **{"class": "Confirmation"})
     return rows
 
-def parse_row(row):
-    divs = row.find_all("div")
-    row = [d.text.strip() for d in divs]
-    # third value here is unix timestamp
-    date, time, _, player, team, action = row
-    # Player field sometimes includes their real name and sometimes doesn't.
-    # Valve likes to come back and add this later, meaning we repost the same news
-    # multiple times if we include it.  So regex it out
-    player = re.sub(r" \([^)]*\)$", "", player)
-    # Valve inconsistently includes team IDs in the data as well: remove that too
-    team = re.sub(r"\(ID: \d+\)", "", team)
-    return (date, time, player, team, action)
+def div_class(div, class_):
+    return div.find_all("div", **{"class": class_})
+
+def maybe_row_from_div(div):
+    classes = ("Nickname", "FullName", "TeamName", "TeamID", "Timestamp")
+    row = [div_class(div, class_) for class_ in classes]
+    row = [c[0].text.strip() if c else None for c in row]
+    if all(row): 
+        return tuple(row)
+    else:
+        return None
+
+def get_all_rows():
+    divs = get_divs()
+    rows = [maybe_row_from_div(div) for div in divs]
+    return [row for row in rows if row]
 
 def get_existing_rows(conn):
     cursor = conn.cursor()
     rows = cursor.execute("SELECT * FROM {}".format(TABLE))
     # Don't add "action" to the set here because we don't dedupe on it (see below)
-    rows = set([(date, time, player, team) for date, time, player, team, action in rows])
-    return rows
+    return set(rows)
 
 def add_row(conn, row):
     cursor = conn.cursor()
@@ -52,20 +55,12 @@ def do_loop(database, slack_token, chatroom, should_post):
     bot = Slacker(slack_token)
     with sqlite3.connect(database) as conn:
         existing_rows = get_existing_rows(conn)
-        rows = get_rows()
-        rows = map(parse_row, rows)
-        # Valve regularly changes the text in "action", so to prevent reposting
-        # the same roster news multiple times, don't dedupe on action
-        rows = {(date, time, player, team): (date, time, player, team, action)
-                for (date, time, player, team, action) in rows}
-        all_row_keys = set(rows.keys())
-        new_row_keys = all_row_keys - existing_rows
-        new_row_keys = sorted(new_row_keys)
+        all_rows = set(get_all_rows())
+        new_rows = all_rows - existing_rows
 
-        for row in new_row_keys:
-            row = rows[row]
-            date, time, player, team, action = row
-            message = u"{} {} {} at {} {}".format(player, action, team, date, time)
+        for row in sorted(new_rows, key=lambda x:(arrow.get(x[-1], "dddd, DD-MMM-YY HH:mm:ss"))):
+            nick, full, team, teamid, time = row
+            message = u"{} {} joined {} on {}".format(nick, full, team, time)
             log_print(message)
             if should_post:
                 bot.chat.post_message(chatroom, message)
@@ -93,7 +88,7 @@ if __name__ == "__main__":
     should_post = not args.no_slack
     
     conn = sqlite3.connect(args.database)
-    conn.execute("CREATE TABLE IF NOT EXISTS roster_status (date text, time text, player_name text, team text, action text)")
+    conn.execute("CREATE TABLE IF NOT EXISTS roster_status (nick text, full text, team text, teamid text, time text)")
     while True:
         log_print("scanning for new players...")
         do_loop(args.database, slack_token, args.chatroom, should_post)
